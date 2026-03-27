@@ -81,7 +81,6 @@ export default function Game() {
   const [isWithdrawing, setIsWithdrawing] = useState(false)
   const [withdrawTxHash, setWithdrawTxHash] = useState<string | null>(null)
   const [withdrawError, setWithdrawError] = useState<string | null>(null)
-  const [isSubmittingScore, setIsSubmittingScore] = useState(false)
   const [hasHydrated, setHydrated] = useState(false)
   const router = useRouter()
 
@@ -445,37 +444,20 @@ export default function Game() {
           localStorage.setItem('shifter_pending', newPending.toFixed(6))
           setTotalPendingEarnings(newPending)
 
-          // SIGNATURE_PHASE: Authenticate only if wallet is connected and not already submitting
-          if (walletAddress && !isSubmittingScore) {
-            setIsSubmittingScore(true)
-            let signature = null
-            try {
-              if (!window.ethereum) throw new Error("No wallet")
-              const provider = new ethers.BrowserProvider(window.ethereum)
-              const signer = await provider.getSigner()
-              const message = `Submit Score: ${finalScore} for Shifter Arcade`
-              signature = await signer.signMessage(message)
-              
-              if (signature) {
-                const res = await fetch('/api/player', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    walletAddress,
-                    score: finalScore,
-                    earnings: finalEarnings,
-                    signature
-                  }),
-                })
-                const data = await res.json()
-                if (data.bestScore) setHighScore(data.bestScore)
-                fetchTaskEarnings(walletAddress)
-              }
-            } catch (e) {
-              console.warn("User cancelled signature or sync failed:", e)
-            } finally {
-              setIsSubmittingScore(false)
-            }
+          // UPDATE DB: Save score without signature prompt
+          if (walletAddress) {
+            fetch('/api/player', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                walletAddress,
+                score: finalScore,
+                earnings: finalEarnings,
+              }),
+            }).then(r => r.json()).then(data => {
+              if (data.bestScore) setHighScore(data.bestScore)
+              fetchTaskEarnings(walletAddress)
+            }).catch(err => console.error('Failed to sync player info:', err))
           }
           return
         }
@@ -496,7 +478,7 @@ export default function Game() {
     if (state.isRunning) {
       animFrameRef.current = requestAnimationFrame(gameLoop)
     }
-  }, [generateObstacle, generateColorOrb, generateUSDCCoins, spawnParticles, triggerShake, draw, playerScreenY, walletAddress, isSubmittingScore, fetchTaskEarnings])
+  }, [generateObstacle, generateColorOrb, generateUSDCCoins, spawnParticles, triggerShake, draw, playerScreenY, walletAddress, fetchTaskEarnings])
 
   // ===== START GAME =====
   const startGame = useCallback(() => {
@@ -849,14 +831,9 @@ export default function Game() {
           <div className="flex flex-col gap-3 w-full max-w-sm">
             <button
               onClick={startGame}
-              disabled={isSubmittingScore}
-              className={`clip-both py-4 text-lg font-display font-bold transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)] mb-2 ${
-                isSubmittingScore 
-                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed opacity-50' 
-                  : 'bg-white text-black hover:bg-neon-blue hover:text-black hover:shadow-[0_0_30px_rgba(0,240,255,0.5)]'
-              }`}
+              className="clip-both py-4 text-lg font-display font-bold bg-white text-black hover:bg-neon-blue hover:text-black transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_30px_rgba(0,240,255,0.5)] mb-2"
             >
-              {isSubmittingScore ? '[ VERIFYING SCORE... ]' : '[ REBOOT SEQUENCE ]'}
+              [ REBOOT SEQUENCE ]
             </button>
             
             <div className="grid grid-cols-2 gap-2 pointer-events-auto mb-2">

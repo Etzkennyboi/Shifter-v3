@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { ethers } from 'ethers'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -58,22 +57,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { walletAddress, score, earnings, signature } = await req.json()
-
-    if (!walletAddress || score === undefined || !signature) {
-      return NextResponse.json({ error: 'Missing wallet, score, or signature' }, { status: 400 })
-    }
-
-    // SECURITY: Verify the score submission identity
-    try {
-      const message = `Submit Score: ${score} for Shifter Arcade`
-      const recoveredAddress = ethers.verifyMessage(message, signature)
-      
-      if (recoveredAddress.toLowerCase() !== walletAddress.toLowerCase()) {
-         throw new Error('Invalid signature identity')
-      }
-    } catch (sigErr: any) {
-      return NextResponse.json({ error: 'Score authentication failed. Transaction not recorded.' }, { status: 401 })
+    const { walletAddress, score, earnings } = await req.json()
+    
+    if (!walletAddress || score === undefined) {
+      return NextResponse.json({ error: 'Missing wallet or score' }, { status: 400 })
     }
 
     const existingPlayer = await prisma.player.findUnique({ where: { walletAddress } })
