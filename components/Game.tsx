@@ -81,6 +81,7 @@ export default function Game() {
   const [isWithdrawing, setIsWithdrawing] = useState(false)
   const [withdrawTxHash, setWithdrawTxHash] = useState<string | null>(null)
   const [withdrawError, setWithdrawError] = useState<string | null>(null)
+  const [isSubmittingScore, setIsSubmittingScore] = useState(false)
   const [hasHydrated, setHydrated] = useState(false)
   const router = useRouter()
 
@@ -425,50 +426,57 @@ export default function Game() {
           spawnParticles(state.playerX, playerScreenY, state.playerColor)
           triggerShake()
 
+          // Capture score and earnings into locals immediately before any possible session reset
+          const finalScore = Math.floor(state.score)
+          const finalEarnings = state.sessionEarnings
+
+          setDisplayScore(finalScore)
+          setDisplaySessionEarnings(finalEarnings)
+          setGameState('gameover')
+
           const prevHigh = parseInt(localStorage.getItem('shifter_high_score') || '0')
-          if (state.score > prevHigh) {
-            localStorage.setItem('shifter_high_score', state.score.toString())
-            setHighScore(state.score)
+          if (finalScore > prevHigh) {
+            localStorage.setItem('shifter_high_score', finalScore.toString())
+            setHighScore(finalScore)
           }
 
           const prevPending = parseFloat(localStorage.getItem('shifter_pending') || '0')
-          const newPending = prevPending + state.sessionEarnings
+          const newPending = prevPending + finalEarnings
           localStorage.setItem('shifter_pending', newPending.toFixed(6))
           setTotalPendingEarnings(newPending)
 
-          setDisplayScore(state.score)
-          setDisplaySessionEarnings(state.sessionEarnings)
-          setGameState('gameover')
-
-          // SIGNATURE_PHASE: Authenticate before saving score
-          let signature = null
-          try {
-            if (!window.ethereum) throw new Error("No wallet")
-            const provider = new ethers.BrowserProvider(window.ethereum)
-            const signer = await provider.getSigner()
-            const message = `Submit Score: ${Math.floor(state.score)} for Shifter Arcade`
-            signature = await signer.signMessage(message)
-          } catch (e) {
-            console.warn("User cancelled signature or wallet absent. Score not recorded for rewards.")
+          // SIGNATURE_PHASE: Authenticate only if wallet is connected and not already submitting
+          if (walletAddress && !isSubmittingScore) {
+            setIsSubmittingScore(true)
+            let signature = null
+            try {
+              if (!window.ethereum) throw new Error("No wallet")
+              const provider = new ethers.BrowserProvider(window.ethereum)
+              const signer = await provider.getSigner()
+              const message = `Submit Score: ${finalScore} for Shifter Arcade`
+              signature = await signer.signMessage(message)
+              
+              if (signature) {
+                const res = await fetch('/api/player', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    walletAddress,
+                    score: finalScore,
+                    earnings: finalEarnings,
+                    signature
+                  }),
+                })
+                const data = await res.json()
+                if (data.bestScore) setHighScore(data.bestScore)
+                fetchTaskEarnings(walletAddress)
+              }
+            } catch (e) {
+              console.warn("User cancelled signature or sync failed:", e)
+            } finally {
+              setIsSubmittingScore(false)
+            }
           }
-
-          // UPDATE DB with signature
-          if (walletAddress && signature) {
-            fetch('/api/player', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                walletAddress,
-                score: Math.floor(state.score),
-                earnings: state.sessionEarnings,
-                signature
-              }),
-            }).then(r => r.json()).then(data => {
-              if (data.bestScore) setHighScore(data.bestScore)
-              fetchTaskEarnings(walletAddress)
-            }).catch(err => console.error('Failed to sync player info:', err))
-          }
-
           return
         }
       }
@@ -488,7 +496,7 @@ export default function Game() {
     if (state.isRunning) {
       animFrameRef.current = requestAnimationFrame(gameLoop)
     }
-  }, [generateObstacle, generateColorOrb, generateUSDCCoins, spawnParticles, triggerShake, draw, playerScreenY])
+  }, [generateObstacle, generateColorOrb, generateUSDCCoins, spawnParticles, triggerShake, draw, playerScreenY, walletAddress, isSubmittingScore, fetchTaskEarnings])
 
   // ===== START GAME =====
   const startGame = useCallback(() => {
@@ -581,7 +589,7 @@ export default function Game() {
 
   // ===== LOAD SAVED DATA & CHECK CHAIN =====
   useEffect(() => {
-    const saved = localStorage.getItem('shifter_highscore')
+    const saved = localStorage.getItem('shifter_high_score') || localStorage.getItem('shifter_highscore')
     if (saved) setHighScore(parseInt(saved))
     const pending = localStorage.getItem('shifter_pending')
     if (pending) setTotalPendingEarnings(parseFloat(pending))
@@ -841,9 +849,14 @@ export default function Game() {
           <div className="flex flex-col gap-3 w-full max-w-sm">
             <button
               onClick={startGame}
-              className="clip-both py-4 text-lg font-display font-bold bg-white text-black hover:bg-neon-blue hover:text-black transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_30px_rgba(0,240,255,0.5)] mb-2"
+              disabled={isSubmittingScore}
+              className={`clip-both py-4 text-lg font-display font-bold transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)] mb-2 ${
+                isSubmittingScore 
+                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed opacity-50' 
+                  : 'bg-white text-black hover:bg-neon-blue hover:text-black hover:shadow-[0_0_30px_rgba(0,240,255,0.5)]'
+              }`}
             >
-              [ REBOOT SEQUENCE ]
+              {isSubmittingScore ? '[ VERIFYING SCORE... ]' : '[ REBOOT SEQUENCE ]'}
             </button>
             
             <div className="grid grid-cols-2 gap-2 pointer-events-auto mb-2">
