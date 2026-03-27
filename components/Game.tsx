@@ -105,12 +105,38 @@ export default function Game() {
     }
   }, [])
 
+  const [dimensions, setDimensions] = useState({ width: 340, height: 600 })
+  const dimensionsRef = useRef({ width: 340, height: 600 })
+
+  useEffect(() => {
+    const updateSize = () => {
+      if (gameAreaRef.current) {
+        const { width, height } = gameAreaRef.current.getBoundingClientRect()
+        setDimensions({ width, height })
+        dimensionsRef.current = { width, height }
+        // Also update player position if it was out of bounds
+        g.current.playerX = Math.min(g.current.playerX, width - PLAYER_SIZE / 2)
+      }
+    }
+    updateSize()
+    window.addEventListener('resize', updateSize)
+    return () => window.removeEventListener('resize', updateSize)
+  }, [])
+
+  // Dynamic Spacing Calculation: Linear interpolation from 550 to 280
+  const getDynamicSpacing = useCallback((score: number) => {
+    const startSpacing = 550
+    const endSpacing = 280
+    const progress = Math.min(score / 3000, 1) // reach max difficulty at score 3000
+    return startSpacing - (startSpacing - endSpacing) * progress
+  }, [])
+
   // ===== GAME REFS (mutable, no re-renders) =====
   const g = useRef<GameRefs>({
     cameraY: 0,
     speed: BASE_SPEED,
     score: 0,
-    playerX: CANVAS_WIDTH / 2,
+    playerX: 170, // will be centered on start
     playerColor: COLORS[0],
     obstacles: [],
     colorOrbs: [],
@@ -167,7 +193,7 @@ export default function Game() {
     return {
       id,
       y: yPos,
-      x: Math.random() * (CANVAS_WIDTH - ORB_SIZE * 2) + ORB_SIZE,
+      x: Math.random() * (dimensionsRef.current.width - ORB_SIZE * 2) + ORB_SIZE,
       newColor: availableColors[Math.floor(Math.random() * availableColors.length)],
       collected: false,
     }
@@ -180,7 +206,7 @@ export default function Game() {
       coins.push({
         id: startId + i,
         y: yStart - (i * COIN_SPAWN_INTERVAL),
-        x: Math.random() * (CANVAS_WIDTH - 40) + 20,
+        x: Math.random() * (dimensionsRef.current.width - 40) + 20,
         value,
         collected: false,
         pulseOffset: Math.random() * Math.PI * 2,
@@ -223,7 +249,7 @@ export default function Game() {
     // === DRAW OBSTACLES ===
     state.obstacles.forEach(obs => {
       const screenY = obs.y - state.cameraY
-      const sectionWidth = CANVAS_WIDTH / obs.sections.length
+      const sectionWidth = dimensionsRef.current.width / obs.sections.length
       obs.sections.forEach((color, i) => {
         ctx.fillStyle = color
         ctx.fillRect(i * sectionWidth, screenY, sectionWidth, 24)
@@ -339,17 +365,15 @@ export default function Game() {
       ? Math.min(...state.obstacles.map(o => o.y))
       : state.cameraY
 
-    if (farthestObstacleY > state.cameraY - CANVAS_HEIGHT * 1.5) {
-      const newY = farthestObstacleY - OBSTACLE_SPACING
+    if (farthestObstacleY > state.cameraY - dimensionsRef.current.height * 1.5) {
+      const dynamicSpacing = getDynamicSpacing(state.score)
+      const newY = farthestObstacleY - dynamicSpacing
       const obsId = state.nextObstacleId++
 
       if (obsId % 3 === 0) {
-        // There will be a color orb placed BEFORE this obstacle.
-        // The player may collect the orb (switching color) or dodge it.
-        // So this obstacle MUST be safe for BOTH the current color AND the orb's future color.
-        const orb = generateColorOrb(newY + COLOR_CHANGER_OFFSET, obsId, state.playerColor)
-        state.colorOrbs.push(orb)
         // Build obstacle that is passable whether player took the orb or not
+        const orb = generateColorOrb(newY + (dynamicSpacing / 2), obsId, state.playerColor)
+        state.colorOrbs.push(orb)
         state.obstacles.push(generateObstacle(newY, obsId, state.playerColor, isHardMode, orb.newColor))
       } else {
         state.obstacles.push(generateObstacle(newY, obsId, state.playerColor, isHardMode))
@@ -361,7 +385,7 @@ export default function Game() {
     }
 
     // === CLEANUP OFF-SCREEN OBJECTS ===
-    const cleanupY = state.cameraY + CANVAS_HEIGHT + 200
+    const cleanupY = state.cameraY + dimensionsRef.current.height + 200
     state.obstacles = state.obstacles.filter(o => o.y < cleanupY)
     state.colorOrbs = state.colorOrbs.filter(o => o.y < cleanupY)
     state.usdcCoins = state.usdcCoins.filter(c => c.y < cleanupY)
@@ -415,7 +439,7 @@ export default function Game() {
       const obsHeight = 28
 
       if (playerScreenY + PLAYER_SIZE / 2 > obsScreenY && playerScreenY - PLAYER_SIZE / 2 < obsScreenY + obsHeight) {
-        const sectionWidth = CANVAS_WIDTH / obs.sections.length
+        const sectionWidth = dimensionsRef.current.width / obs.sections.length
         const sectionIndex = Math.floor(state.playerX / sectionWidth)
         const clampedIndex = Math.max(0, Math.min(sectionIndex, obs.sections.length - 1))
 
@@ -486,7 +510,7 @@ export default function Game() {
     state.cameraY = 0
     state.speed = BASE_SPEED
     state.score = 0
-    state.playerX = CANVAS_WIDTH / 2
+    state.playerX = dimensionsRef.current.width / 2
     state.playerColor = COLORS[0]
     state.obstacles = []
     state.colorOrbs = []
@@ -506,12 +530,13 @@ export default function Game() {
     setGameState('playing')
 
     for (let i = 0; i < 5; i++) {
-      const y = -(i + 1) * OBSTACLE_SPACING
+      const dynamicSpacing = getDynamicSpacing(0) // initial spacing
+      const y = -(i + 1) * dynamicSpacing
       const id = state.nextObstacleId++
       state.obstacles.push(generateObstacle(y, id, state.playerColor, false))
       
       if (id % 3 === 0) {
-        state.colorOrbs.push(generateColorOrb(y + COLOR_CHANGER_OFFSET, id, state.playerColor))
+        state.colorOrbs.push(generateColorOrb(y + (dynamicSpacing / 2), id, state.playerColor))
       }
       
       const coins = generateUSDCCoins(y + 100, id * 10, false).slice(0, 1)
@@ -519,15 +544,14 @@ export default function Game() {
     }
 
     animFrameRef.current = requestAnimationFrame(gameLoop)
-  }, [gameLoop, generateObstacle, generateColorOrb, generateUSDCCoins])
+  }, [gameLoop, generateObstacle, generateColorOrb, generateUSDCCoins, getDynamicSpacing])
 
   // ===== INPUT HANDLING =====
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!g.current.isRunning || !gameAreaRef.current) return
       const rect = gameAreaRef.current.getBoundingClientRect()
-      const scaleX = CANVAS_WIDTH / rect.width
-      g.current.playerX = Math.max(PLAYER_SIZE / 2, Math.min(CANVAS_WIDTH - PLAYER_SIZE / 2, (e.clientX - rect.left) * scaleX))
+      g.current.playerX = Math.max(PLAYER_SIZE / 2, Math.min(rect.width - PLAYER_SIZE / 2, (e.clientX - rect.left)))
     }
 
     const handleTouchStart = (e: TouchEvent) => {
@@ -539,9 +563,8 @@ export default function Game() {
     const handleTouchMove = (e: TouchEvent) => {
       if (!g.current.isRunning || !gameAreaRef.current) return
       const rect = gameAreaRef.current.getBoundingClientRect()
-      const scaleX = CANVAS_WIDTH / rect.width
       if (e.touches.length > 0) {
-        g.current.playerX = Math.max(PLAYER_SIZE / 2, Math.min(CANVAS_WIDTH - PLAYER_SIZE / 2, (e.touches[0].clientX - rect.left) * scaleX))
+        g.current.playerX = Math.max(PLAYER_SIZE / 2, Math.min(rect.width - PLAYER_SIZE / 2, (e.touches[0].clientX - rect.left)))
       }
     }
 
@@ -719,19 +742,14 @@ export default function Game() {
       style={{
         width: '100%',
         height: '100%',
-        maxWidth: CANVAS_WIDTH,
-        maxHeight: CANVAS_HEIGHT,
-        aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}`,
         background: 'linear-gradient(180deg, #030712 0%, #0f172a 50%, #030712 100%)',
-        borderRadius: 12,
-        border: '1px solid rgba(255,255,255,0.1)',
         touchAction: 'none'
       }}
     >
       <canvas
         ref={canvasRef}
-        width={CANVAS_WIDTH}
-        height={CANVAS_HEIGHT}
+        width={dimensions.width}
+        height={dimensions.height}
         className="absolute inset-0 w-full h-full"
       />
 
