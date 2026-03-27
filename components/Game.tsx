@@ -97,8 +97,6 @@ export default function Game() {
     try {
       const res = await fetch(`/api/player?walletAddress=${address}`)
       const data = await res.json()
-      // taskEarnings = pendingBalance or totalEarned from tasks
-      // For this arcade, we will show "Acquired" as their total bounty yield
       setTaskEarnings(data.totalEarned || 0)
     } catch (e) {
       console.error('Failed to fetch task earnings:', e)
@@ -114,7 +112,6 @@ export default function Game() {
         const { width, height } = gameAreaRef.current.getBoundingClientRect()
         setDimensions({ width, height })
         dimensionsRef.current = { width, height }
-        // Also update player position if it was out of bounds
         g.current.playerX = Math.min(g.current.playerX, width - PLAYER_SIZE / 2)
       }
     }
@@ -123,11 +120,10 @@ export default function Game() {
     return () => window.removeEventListener('resize', updateSize)
   }, [])
 
-  // Dynamic Spacing Calculation: Linear interpolation from 550 to 280
   const getDynamicSpacing = useCallback((score: number) => {
     const startSpacing = 550
     const endSpacing = 280
-    const progress = Math.min(score / 3000, 1) // reach max difficulty at score 3000
+    const progress = Math.min(score / 3000, 1)
     return startSpacing - (startSpacing - endSpacing) * progress
   }, [])
 
@@ -136,7 +132,7 @@ export default function Game() {
     cameraY: 0,
     speed: BASE_SPEED,
     score: 0,
-    playerX: 170, // will be centered on start
+    playerX: 170,
     playerColor: COLORS[0],
     obstacles: [],
     colorOrbs: [],
@@ -155,28 +151,19 @@ export default function Game() {
   const touchStartX = useRef<number>(0)
 
   // ===== HELPERS =====
-  // Generates an obstacle guaranteed safe for safeColor, and optionally also safeColor2.
-  // This ensures that whether a player takes an orb or dodges it, they can always survive.
   const generateObstacle = useCallback((yPos: number, id: number, safeColor: string, isHardMode: boolean, safeColor2?: string): Obstacle => {
-    // Lock track to exactly 4 lanes
     const numSections = 4
-
     const safePalette = [safeColor, safeColor2].filter(Boolean) as string[]
     const dangerousColors = COLORS.filter(c => !safePalette.includes(c))
 
-    // Fill all sections with non-safe colors
     const sections: string[] = Array(numSections).fill(0).map(() =>
       dangerousColors.length > 0
         ? dangerousColors[Math.floor(Math.random() * dangerousColors.length)]
-        : COLORS[0] // fallback if all colors are safe
+        : COLORS[0]
     )
 
-    // Guarantee at least one section for the PRIMARY safe color
     sections[Math.floor(Math.random() * numSections)] = safeColor
-
-    // Guarantee at least one ADDITIONAL section for the secondary safe color (orb target color)
     if (safeColor2 && safeColor2 !== safeColor && numSections > 1) {
-      // Find a different slot from where we placed the primary color
       const primarySlot = sections.lastIndexOf(safeColor)
       let secondarySlot: number
       do {
@@ -184,7 +171,6 @@ export default function Game() {
       } while (secondarySlot === primarySlot)
       sections[secondarySlot] = safeColor2
     }
-
     return { id, y: yPos, sections }
   }, [])
 
@@ -239,26 +225,25 @@ export default function Game() {
     }
   }, [])
 
-  const playerScreenY = CANVAS_HEIGHT * 0.75
-
   // ===== DRAWING =====
   const draw = useCallback((ctx: CanvasRenderingContext2D) => {
     const state = g.current
-    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
+    const { width, height } = dimensionsRef.current
+    ctx.clearRect(0, 0, width, height)
+
+    const playerScreenY = height * 0.75
 
     // === DRAW OBSTACLES ===
     state.obstacles.forEach(obs => {
       const screenY = obs.y - state.cameraY
-      const sectionWidth = dimensionsRef.current.width / obs.sections.length
+      const sectionWidth = width / obs.sections.length
       obs.sections.forEach((color, i) => {
         ctx.fillStyle = color
         ctx.fillRect(i * sectionWidth, screenY, sectionWidth, 24)
         
-        // Glow effect for sections
-        ctx.shadowBlur = 10
-        ctx.shadowColor = color
+        ctx.globalAlpha = 0.3
         ctx.fillRect(i * sectionWidth + 2, screenY + 2, sectionWidth - 4, 20)
-        ctx.shadowBlur = 0
+        ctx.globalAlpha = 1.0
       })
     })
 
@@ -266,15 +251,19 @@ export default function Game() {
     state.colorOrbs.forEach(orb => {
       if (orb.collected) return
       const screenY = orb.y - state.cameraY
+      
       ctx.beginPath()
       ctx.arc(orb.x, screenY, 15, 0, Math.PI * 2)
       ctx.fillStyle = orb.newColor
-      ctx.shadowBlur = 15
-      ctx.shadowColor = orb.newColor
       ctx.fill()
-      ctx.shadowBlur = 0
       
-      // Ring
+      ctx.globalAlpha = 0.4
+      ctx.beginPath()
+      ctx.arc(orb.x, screenY, 20, 0, Math.PI * 2)
+      ctx.fillStyle = orb.newColor
+      ctx.fill()
+      ctx.globalAlpha = 1.0
+      
       ctx.beginPath()
       ctx.arc(orb.x, screenY, 20, 0, Math.PI * 2)
       ctx.strokeStyle = 'white'
@@ -290,7 +279,7 @@ export default function Game() {
       
       ctx.beginPath()
       ctx.arc(coin.x, screenY, 12 + pulse, 0, Math.PI * 2)
-      ctx.fillStyle = '#2775ca' // USDC Blue
+      ctx.fillStyle = '#2775ca'
       ctx.fill()
       ctx.strokeStyle = '#ffffff'
       ctx.lineWidth = 2
@@ -315,82 +304,74 @@ export default function Game() {
       ctx.globalAlpha = ft.life
       ctx.fillStyle = ft.color
       ctx.font = 'bold 16px Courier New'
+      ctx.textAlign = 'center'
       ctx.fillText(ft.text, ft.x, ft.y - (1.0 - ft.life) * 50)
     })
     ctx.globalAlpha = 1.0
 
     // === DRAW PLAYER ===
     ctx.fillStyle = state.playerColor
-    ctx.shadowBlur = 20
+    ctx.shadowBlur = 15
     ctx.shadowColor = state.playerColor
-    // Glowing square player
     ctx.fillRect(state.playerX - PLAYER_SIZE / 2, playerScreenY - PLAYER_SIZE / 2, PLAYER_SIZE, PLAYER_SIZE)
     
-    // Inner white square
     ctx.fillStyle = 'white'
     ctx.fillRect(state.playerX - PLAYER_SIZE / 4, playerScreenY - PLAYER_SIZE / 4, PLAYER_SIZE / 2, PLAYER_SIZE / 2)
     ctx.shadowBlur = 0
 
-  }, [playerScreenY])
+  }, [])
 
   // ===== GAME LOOP =====
-  const gameLoop = useCallback(async () => { // Made async to await signature
+  const gameLoop = useCallback(async () => {
     if (!g.current.isRunning) return
 
     const state = g.current
+    const { width, height } = dimensionsRef.current
     state.tick++
 
-    // === MOVE CAMERA ===
+    const playerScreenY = height * 0.75
+
     state.cameraY -= state.speed
     state.score++
     const isHardMode = state.score > 1000
 
-    // === SPEED RAMP ===
     let targetSpeed = BASE_SPEED + (state.score / 4000)
     if (isHardMode) targetSpeed += HARD_MODE_SPEED_BOOST + ((state.score - 1000) / 1000)
     state.speed = Math.min(state.speed + 0.005, Math.min(targetSpeed, MAX_SPEED))
 
-    // === UPDATE PARTICLES ===
     state.particles = state.particles
       .map(p => ({ ...p, x: p.x + p.vx, y: p.y + p.vy, life: p.life - 0.05 }))
       .filter(p => p.life > 0)
 
-    // === UPDATE FLOATING TEXTS ===
     state.floatingTexts = state.floatingTexts
       .map(ft => ({ ...ft, life: ft.life - 0.03 }))
       .filter(ft => ft.life > 0)
 
-    // === GENERATE OBSTACLES ===
     const farthestObstacleY = state.obstacles.length > 0
       ? Math.min(...state.obstacles.map(o => o.y))
       : state.cameraY
 
-    if (farthestObstacleY > state.cameraY - dimensionsRef.current.height * 1.5) {
+    if (farthestObstacleY > state.cameraY - height * 1.5) {
       const dynamicSpacing = getDynamicSpacing(state.score)
       const newY = farthestObstacleY - dynamicSpacing
       const obsId = state.nextObstacleId++
 
       if (obsId % 3 === 0) {
-        // Build obstacle that is passable whether player took the orb or not
         const orb = generateColorOrb(newY + (dynamicSpacing / 2), obsId, state.playerColor)
         state.colorOrbs.push(orb)
         state.obstacles.push(generateObstacle(newY, obsId, state.playerColor, isHardMode, orb.newColor))
       } else {
         state.obstacles.push(generateObstacle(newY, obsId, state.playerColor, isHardMode))
       }
-
-      // USDC coins - 1 coin per screen
       const coins = generateUSDCCoins(newY + 100, obsId * 10, isHardMode).slice(0, 1)
       state.usdcCoins.push(...coins)
     }
 
-    // === CLEANUP OFF-SCREEN OBJECTS ===
-    const cleanupY = state.cameraY + dimensionsRef.current.height + 200
+    const cleanupY = state.cameraY + height + 200
     state.obstacles = state.obstacles.filter(o => o.y < cleanupY)
     state.colorOrbs = state.colorOrbs.filter(o => o.y < cleanupY)
     state.usdcCoins = state.usdcCoins.filter(c => c.y < cleanupY)
 
-    // === COLLECT COLOR ORBS ===
     state.colorOrbs.forEach(orb => {
       if (orb.collected) return
       const orbScreenY = orb.y - state.cameraY
@@ -401,8 +382,6 @@ export default function Game() {
         state.playerColor = orb.newColor
         spawnParticles(orb.x, orbScreenY, orb.newColor)
 
-        // Rebuild ALL pre-generated upcoming obstacles for the new color.
-        // Obstacles are above the player in world coordinates (lower Y = further ahead).
         const playerWorldY = state.cameraY + playerScreenY
         state.obstacles
           .filter(o => o.y < playerWorldY)
@@ -413,7 +392,6 @@ export default function Game() {
       }
     })
 
-    // === COLLECT USDC COINS ===
     state.usdcCoins.forEach(coin => {
       if (coin.collected) return
       const coinScreenY = coin.y - state.cameraY
@@ -424,35 +402,26 @@ export default function Game() {
         state.sessionEarnings += coin.value
         spawnParticles(coin.x, coinScreenY, '#FFD700')
         state.floatingTexts.push({
-          x: coin.x,
-          y: coinScreenY,
-          text: `+$${coin.value.toFixed(2)}`,
-          life: 1.0,
-          color: '#FFD700',
+          x: coin.x, y: coinScreenY, text: `+$${coin.value.toFixed(2)}`, life: 1.0, color: '#FFD700',
         })
       }
     })
 
-    // === OBSTACLE COLLISION ===
     for (const obs of state.obstacles) {
       const obsScreenY = obs.y - state.cameraY
       const obsHeight = 28
-
       if (playerScreenY + PLAYER_SIZE / 2 > obsScreenY && playerScreenY - PLAYER_SIZE / 2 < obsScreenY + obsHeight) {
-        const sectionWidth = dimensionsRef.current.width / obs.sections.length
+        const sectionWidth = width / obs.sections.length
         const sectionIndex = Math.floor(state.playerX / sectionWidth)
         const clampedIndex = Math.max(0, Math.min(sectionIndex, obs.sections.length - 1))
 
         if (obs.sections[clampedIndex] !== state.playerColor) {
-          // === DEATH ===
           state.isRunning = false
           spawnParticles(state.playerX, playerScreenY, state.playerColor)
           triggerShake()
 
-          // Capture score and earnings into locals immediately before any possible session reset
           const finalScore = Math.floor(state.score)
           const finalEarnings = state.sessionEarnings
-
           setDisplayScore(finalScore)
           setDisplaySessionEarnings(finalEarnings)
           setGameState('gameover')
@@ -468,16 +437,11 @@ export default function Game() {
           localStorage.setItem('shifter_pending', newPending.toFixed(6))
           setTotalPendingEarnings(newPending)
 
-          // UPDATE DB: Save score without signature prompt
           if (walletAddress) {
             fetch('/api/player', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                walletAddress,
-                score: finalScore,
-                earnings: finalEarnings,
-              }),
+              body: JSON.stringify({ walletAddress, score: finalScore, earnings: finalEarnings }),
             }).then(r => r.json()).then(data => {
               if (data.bestScore) setHighScore(data.bestScore)
               fetchTaskEarnings(walletAddress)
@@ -488,23 +452,16 @@ export default function Game() {
       }
     }
 
-    // === UPDATE DISPLAY (Throttled DOM Mutations instead of React State to avoid lag) ===
     if (state.tick % 5 === 0) {
       if (uiScoreRef.current) uiScoreRef.current.innerText = state.score.toString()
       if (uiEarningsRef.current) uiEarningsRef.current.innerText = `$${state.sessionEarnings.toFixed(2)}`
     }
 
-    // === RENDER TO CANVAS ===
     const ctx = canvasRef.current?.getContext('2d')
     if (ctx) draw(ctx)
+    if (state.isRunning) animFrameRef.current = requestAnimationFrame(gameLoop)
+  }, [generateObstacle, generateColorOrb, generateUSDCCoins, spawnParticles, triggerShake, draw, walletAddress, fetchTaskEarnings, getDynamicSpacing])
 
-    // === NEXT FRAME ===
-    if (state.isRunning) {
-      animFrameRef.current = requestAnimationFrame(gameLoop)
-    }
-  }, [generateObstacle, generateColorOrb, generateUSDCCoins, spawnParticles, triggerShake, draw, playerScreenY, walletAddress, fetchTaskEarnings])
-
-  // ===== START GAME =====
   const startGame = useCallback(() => {
     const state = g.current
     state.cameraY = 0
@@ -530,15 +487,13 @@ export default function Game() {
     setGameState('playing')
 
     for (let i = 0; i < 5; i++) {
-      const dynamicSpacing = getDynamicSpacing(0) // initial spacing
+      const dynamicSpacing = getDynamicSpacing(0)
       const y = -(i + 1) * dynamicSpacing
       const id = state.nextObstacleId++
       state.obstacles.push(generateObstacle(y, id, state.playerColor, false))
-      
       if (id % 3 === 0) {
         state.colorOrbs.push(generateColorOrb(y + (dynamicSpacing / 2), id, state.playerColor))
       }
-      
       const coins = generateUSDCCoins(y + 100, id * 10, false).slice(0, 1)
       state.usdcCoins.push(...coins)
     }
@@ -546,20 +501,15 @@ export default function Game() {
     animFrameRef.current = requestAnimationFrame(gameLoop)
   }, [gameLoop, generateObstacle, generateColorOrb, generateUSDCCoins, getDynamicSpacing])
 
-  // ===== INPUT HANDLING =====
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!g.current.isRunning || !gameAreaRef.current) return
       const rect = gameAreaRef.current.getBoundingClientRect()
       g.current.playerX = Math.max(PLAYER_SIZE / 2, Math.min(rect.width - PLAYER_SIZE / 2, (e.clientX - rect.left)))
     }
-
     const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length > 0) {
-        touchStartX.current = e.touches[0].clientX
-      }
+      if (e.touches.length > 0) touchStartX.current = e.touches[0].clientX
     }
-
     const handleTouchMove = (e: TouchEvent) => {
       if (!g.current.isRunning || !gameAreaRef.current) return
       const rect = gameAreaRef.current.getBoundingClientRect()
@@ -567,14 +517,12 @@ export default function Game() {
         g.current.playerX = Math.max(PLAYER_SIZE / 2, Math.min(rect.width - PLAYER_SIZE / 2, (e.touches[0].clientX - rect.left)))
       }
     }
-
     const el = gameAreaRef.current
     if (el) {
       el.addEventListener('mousemove', handleMouseMove)
       el.addEventListener('touchstart', handleTouchStart, { passive: false })
       el.addEventListener('touchmove', handleTouchMove, { passive: false })
     }
-
     return () => {
       if (el) {
         el.removeEventListener('mousemove', handleMouseMove)
@@ -584,7 +532,6 @@ export default function Game() {
     }
   }, [gameState])
 
-  // ===== CLEANUP ON UNMOUNT =====
   useEffect(() => {
     return () => {
       g.current.isRunning = false
@@ -592,9 +539,8 @@ export default function Game() {
     }
   }, [])
 
-  // ===== LOAD SAVED DATA & CHECK CHAIN =====
   useEffect(() => {
-    const saved = localStorage.getItem('shifter_high_score') || localStorage.getItem('shifter_highscore')
+    const saved = localStorage.getItem('shifter_high_score')
     if (saved) setHighScore(parseInt(saved))
     const pending = localStorage.getItem('shifter_pending')
     if (pending) setTotalPendingEarnings(parseFloat(pending))
@@ -602,31 +548,15 @@ export default function Game() {
     
     if (wallet) {
       setWalletAddress(wallet)
-      
-      // Sync DB highscore
       fetch(`/api/player?walletAddress=${wallet}`)
         .then(res => res.json())
         .then(data => {
           if (data && data.bestScore !== undefined) {
              setHighScore(Math.max(parseInt(saved || "0"), data.bestScore))
           }
-        })
-        .catch(err => console.error("Error syncing highscore:", err))
-
-      // Auto switch to X layer
-      if (window.ethereum) {
-        window.ethereum.request({ method: 'eth_chainId' }).then((chainId: string) => {
-          if (chainId !== XLAYER_CHAIN_ID) {
-            window.ethereum.request({
-              method: 'wallet_switchEthereumChain',
-              params: [{ chainId: XLAYER_CHAIN_ID }],
-            }).catch(() => {})
-          }
-        }).catch(() => {})
-      }
+        }).catch(console.error)
     }
 
-    // Reactivity: listen for changes from the wallet itself
     if (window.ethereum) {
       const handleAccounts = (accounts: string[]) => {
         if (accounts.length > 0) {
@@ -642,7 +572,6 @@ export default function Game() {
     }
   }, [])
 
-  // ===== CONNECT WALLET =====
   const connectWallet = useCallback(async () => {
     if (!window.ethereum) {
       alert('Please install MetaMask or OKX Wallet!')
@@ -651,29 +580,7 @@ export default function Game() {
     try {
       const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
       const address = accounts[0]
-      
       await fetchTaskEarnings(address)
-
-      try {
-        await window.ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: XLAYER_CHAIN_ID }],
-        })
-      } catch (switchErr: any) {
-        if (switchErr.code === 4902) {
-          await window.ethereum.request({
-            method: 'wallet_addEthereumChain',
-            params: [{
-              chainId: XLAYER_CHAIN_ID,
-              chainName: 'X Layer Mainnet',
-              nativeCurrency: { name: 'OKB', symbol: 'OKB', decimals: 18 },
-              rpcUrls: ['https://rpc.xlayer.tech'],
-              blockExplorerUrls: ['https://www.okx.com/explorer/xlayer'],
-            }],
-          })
-        }
-      }
-
       setWalletAddress(address)
       localStorage.setItem('shifter_wallet', address)
 
@@ -681,58 +588,19 @@ export default function Game() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ walletAddress: address, score: 0, earnings: 0 }),
-      })
-      .then(r => r.json())
-      .then(data => {
-        if (data.bestScore !== undefined) {
-          setHighScore(prev => Math.max(prev, data.bestScore))
-        }
-      })
-      .catch((err) => console.error('Failed to sync player highscore:', err))
+      }).then(r => r.json()).then(data => {
+        if (data.bestScore !== undefined) setHighScore(prev => Math.max(prev, data.bestScore))
+      }).catch(console.error)
     } catch (err) {
       console.error('Wallet connection failed:', err)
     }
-  }, [])
+  }, [fetchTaskEarnings])
 
   const disconnectWallet = useCallback(() => {
     setWalletAddress(null)
     localStorage.removeItem('shifter_wallet')
   }, [])
 
-  // ===== WITHDRAW =====
-  const handleWithdraw = useCallback(async () => {
-    if (!walletAddress || totalPendingEarnings < MIN_WITHDRAWAL) return
-    setIsWithdrawing(true)
-    setWithdrawError(null)
-
-    try {
-      const res = await fetch('/api/withdraw', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress,
-          amount: totalPendingEarnings,
-          score: displayScore,
-        }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Withdrawal failed')
-      }
-
-      setWithdrawTxHash(data.txHash)
-      setTotalPendingEarnings(0)
-      localStorage.setItem('shifter_pending', '0')
-    } catch (err: any) {
-      setWithdrawError(err.message)
-    } finally {
-      setIsWithdrawing(false)
-    }
-  }, [walletAddress, totalPendingEarnings, displayScore])
-
-  // ===== RENDER =====
   if (!hasHydrated) return null
 
   return (
@@ -758,73 +626,83 @@ export default function Game() {
         <div className="absolute inset-0 flex flex-col items-center justify-center z-50 bg-neon-dark/80 backdrop-blur-md pointer-events-auto border border-neon-blue/20 clip-both shadow-[0_0_50px_rgba(0,240,255,0.1)]">
           <div className="absolute top-0 w-full h-1 bg-gradient-to-r from-transparent via-neon-blue to-transparent opacity-50 shadow-[0_0_10px_#00F0FF]"></div>
           
-          <h1 className="text-4xl font-display font-black mb-2 animate-pulse-glow tracking-[0.05em] text-transparent bg-clip-text bg-gradient-to-br from-white via-neon-green to-neon-blue text-center px-6 w-full shrink-0">
+          <h1 className="text-5xl sm:text-7xl font-display font-black mb-4 animate-pulse-glow tracking-[0.05em] text-transparent bg-clip-text bg-gradient-to-br from-white via-neon-green to-neon-blue text-center px-6 w-full shrink-0">
             SHIFTER
           </h1>
-          <p className="text-neon-blue text-[10px] mb-1 uppercase tracking-widest font-bold text-center">» Dodge · Collect · Earn</p>
-          <p className="text-white/40 text-[8px] mb-8 uppercase tracking-[0.3em] text-center">System: Real USDC · X Layer</p>
+          <p className="text-neon-blue text-xs mb-1 uppercase tracking-[0.4em] font-bold text-center">» Dodge · Collect · Earn</p>
+          <p className="text-white/40 text-[10px] mb-8 uppercase tracking-[0.3em] text-center">Protocol: Extractions enabled via X Layer</p>
 
-          <div className="mb-8 w-full max-w-[260px]">
+          <div className="mb-8 w-full max-w-[320px]">
             {highScore > 0 ? (
-              <div className="bg-black/40 px-6 py-3 border-l-2 border-neon-pink clip-edge relative overflow-hidden group text-center">
+              <div className="bg-black/60 px-8 py-4 border-l-4 border-neon-pink clip-edge relative overflow-hidden group text-center">
                 <div className="absolute inset-0 bg-neon-pink/5 group-hover:bg-neon-pink/10 transition-colors"></div>
-                <p className="text-[10px] text-neon-pink uppercase tracking-[0.3em] mb-1 font-bold">Personal High Score</p>
-                <p className="text-3xl font-display font-black text-white drop-shadow-[0_0_10px_rgba(255,0,60,0.5)]">{highScore}</p>
+                <p className="text-[12px] text-neon-pink uppercase tracking-[0.3em] mb-1 font-bold">Personal High Score</p>
+                <p className="text-4xl font-display font-black text-white drop-shadow-[0_0_15px_rgba(255,0,60,0.6)]">{highScore}</p>
               </div>
             ) : (
-              <div className="bg-black/20 px-6 py-3 border-l-2 border-white/20 clip-edge text-center opacity-50">
-                <p className="text-[10px] text-white/40 uppercase tracking-[0.3em] font-bold">Awaiting Extraction</p>
-                <p className="text-xl font-display font-black text-white/20">-- --</p>
+              <div className="bg-black/40 px-8 py-4 border-l-4 border-white/20 clip-edge text-center opacity-50">
+                <p className="text-[12px] text-white/40 uppercase tracking-[0.3em] font-bold">Awaiting Primary Run</p>
+                <p className="text-2xl font-display font-black text-white/20">-- --</p>
               </div>
             )}
           </div>
 
+          <div className="mb-10 w-full max-w-[320px] bg-white/5 border border-white/10 p-5 clip-both relative group text-left">
+            <div className="absolute top-0 left-0 w-2 h-2 bg-neon-blue"></div>
+            <p className="text-[10px] text-neon-blue uppercase tracking-[0.3em] font-bold mb-3">MISSION BRIEFING</p>
+            <ul className="text-[11px] text-white/70 space-y-2 font-display tracking-widest leading-relaxed">
+              <li className="flex gap-3"><span className="text-neon-blue font-bold">01.</span> Match your color to pass security barriers.</li>
+              <li className="flex gap-3"><span className="text-neon-blue font-bold">02.</span> Collect orbs to shift your neural color.</li>
+              <li className="flex gap-3"><span className="text-neon-blue font-bold">03.</span> Extract USDC coins for real-world yield.</li>
+            </ul>
+          </div>
+
           <button
             onClick={() => walletAddress ? startGame() : connectWallet()}
-            className={`clip-edge px-8 py-3 text-sm font-display font-black mb-6 transition-all hover:scale-[1.02] active:scale-95 shadow-[0_0_30px_rgba(0,255,102,0.4)] inset-ring ${
+            className={`clip-edge px-12 py-5 text-lg font-display font-black mb-8 transition-all hover:scale-[1.05] active:scale-95 shadow-[0_0_40px_rgba(34,197,94,0.3)] inset-ring ${
               walletAddress ? 'bg-neon-green text-black hover:bg-white' : 'bg-neon-blue text-white hover:bg-neon-blue/80 animate-pulse'
             }`}
           >
-            {walletAddress ? '[ INITIALIZE ]' : '[ CONNECT TO START ]'}
+            {walletAddress ? '[ INITIATE EXTRACTION ]' : '[ LINK SYSTEM TO START ]'}
           </button>
 
-          <div className="flex flex-col gap-3 mb-6 pointer-events-auto w-full max-w-[260px] px-2">
+          <div className="flex flex-col sm:flex-row gap-4 mb-8 pointer-events-auto w-full max-w-[320px] px-2">
             <button 
               onClick={() => walletAddress ? router.push('/leaderboard') : connectWallet()}
-              className={`clip-edge-rev w-full py-2 text-[10px] font-bold uppercase tracking-[0.2em] transition-all shadow-[0_0_15px_rgba(0,240,255,0.1)] ${
+              className={`clip-edge-rev flex-1 py-3 text-[11px] font-bold uppercase tracking-[0.2em] transition-all shadow-[0_0_15px_rgba(0,240,255,0.1)] ${
                 walletAddress ? 'bg-neon-dark border border-neon-blue/50 text-neon-blue hover:bg-neon-blue/10 cursor-pointer' : 'bg-black/80 border border-white/10 text-white/30 cursor-not-allowed'
               }`}
             >
-              🏆 Rankings {(!walletAddress) && '(LOCKED)'}
+              🏆 Ranking
             </button>
             <button 
               onClick={() => walletAddress ? router.push('/tasks') : connectWallet()}
-              className={`clip-edge-rev w-full py-2 text-[10px] font-bold uppercase tracking-[0.2em] transition-all shadow-[0_0_15px_rgba(176,38,255,0.1)] ${
+              className={`clip-edge-rev flex-1 py-3 text-[11px] font-bold uppercase tracking-[0.2em] transition-all shadow-[0_0_15px_rgba(176,38,255,0.1)] ${
                 walletAddress ? 'bg-neon-dark border border-neon-purple/50 text-neon-purple hover:bg-neon-purple/10 cursor-pointer' : 'bg-black/80 border border-white/10 text-white/30 cursor-not-allowed'
               }`}
             >
-              ⚡ Bounties {(!walletAddress) && '(LOCKED)'}
+              ⚡ Bounties
             </button>
           </div>
 
           {!walletAddress ? (
             <button
               onClick={connectWallet}
-              className="clip-both px-6 py-2 text-xs font-bold bg-neon-blue/10 border border-neon-blue text-neon-blue hover:bg-neon-blue hover:text-black transition-all active:scale-95 flex items-center justify-center gap-2 tracking-widest text-center"
+              className="clip-both px-8 py-3 text-xs font-bold bg-neon-blue/10 border border-neon-blue text-neon-blue hover:bg-neon-blue hover:text-black transition-all active:scale-95 flex items-center justify-center gap-2 tracking-widest text-center"
             >
               CONNECT NEURAL LINK
             </button>
           ) : (
-            <div className="flex items-center gap-3 bg-black/60 px-4 py-2 border-r-2 border-neon-blue">
-              <Link href="/profile" className="text-[10px] font-bold text-neon-pink hover:text-white uppercase tracking-[0.2em] transition-colors border-r border-white/20 pr-3">
-                PROFILE
+            <div className="flex items-center gap-4 bg-black/60 px-6 py-3 border-r-4 border-neon-blue">
+              <Link href="/profile" className="text-[11px] font-bold text-neon-pink hover:text-white uppercase tracking-[0.2em] transition-colors border-r border-white/20 pr-4">
+                AGENT PROFILE
               </Link>
               <div className="group relative flex flex-col items-center justify-center cursor-pointer">
-                <p className="text-[10px] text-neon-blue font-mono group-hover:text-neon-pink transition-colors">
-                  {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                <p className="text-[11px] text-neon-blue font-mono group-hover:text-neon-pink transition-colors">
+                  {walletAddress.slice(0, 8)}...{walletAddress.slice(-6)}
                 </p>
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 hidden group-hover:flex items-center justify-center bg-black/90 w-full h-full">
-                  <button onClick={disconnectWallet} className="text-[10px] font-bold text-neon-pink flex items-center gap-1">
+                  <button onClick={disconnectWallet} className="text-[11px] font-bold text-neon-pink flex items-center gap-1">
                     <span className="animate-pulse">⚠️</span> DISCONNECT
                   </button>
                 </div>
