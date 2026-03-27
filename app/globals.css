@@ -5,7 +5,8 @@
 html, body {
   margin: 0;
   padding: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   overscroll-behavior: none;
   background-color: #030014;
   background-image: 
@@ -15,7 +16,7 @@ html, body {
 }
 
 .crt-overlay {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   width: 100vw;

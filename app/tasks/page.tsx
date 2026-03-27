@@ -157,7 +157,7 @@ export default function TasksPage() {
   }
 
   return (
-    <div className="min-h-screen bg-transparent text-white p-4 font-sans relative overflow-hidden flex flex-col items-center py-12 z-10">
+    <div className="min-h-screen bg-transparent text-white p-4 font-sans relative overflow-y-auto flex flex-col items-center py-12 pb-24 z-10">
       <div className="absolute top-[20%] right-[-5%] w-[30%] h-[30%] bg-neon-purple/5 blur-[100px] rounded-full pointer-events-none" />
 
       <motion.div 
