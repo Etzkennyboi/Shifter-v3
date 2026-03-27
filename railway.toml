@@ -1,0 +1,12 @@
+[build]
+builder = "nixpacks"
+buildCommand = "npx prisma generate && npm run build"
+
+[deploy]
+startCommand = "npx prisma db push && node scripts/seed-tasks.js && npm start"
+healthcheckPath = "/"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+[service]
+internalPort = 3000
