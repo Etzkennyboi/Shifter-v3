@@ -340,11 +340,17 @@ export default function Game() {
 
     state.cameraY -= state.speed
     state.score++
-    const isHardMode = state.score > 1000
+    const isHardMode = state.score > 20000
 
-    let targetSpeed = BASE_SPEED + (state.score / 4000)
-    if (isHardMode) targetSpeed += HARD_MODE_SPEED_BOOST + ((state.score - 1000) / 1000)
-    state.speed = Math.min(state.speed + 0.005, Math.min(targetSpeed, MAX_SPEED))
+    // Every 5,000 points, slightly shift the cruising phase
+    const phase = Math.floor(state.score / 5000)
+    let targetSpeed = BASE_SPEED + (phase > 0 ? (phase * 0.5) : 0)
+    
+    // Hard mode activates at 20,000+
+    if (state.score >= 20000) targetSpeed += HARD_MODE_SPEED_BOOST
+    
+    // Smooth transition to phase target
+    state.speed = Math.min(state.speed + 0.002, Math.min(targetSpeed, MAX_SPEED))
 
     state.particles = state.particles
       .map(p => ({ ...p, x: p.x + p.vx, y: p.y + p.vy, life: p.life - 0.05 }))
@@ -575,7 +581,9 @@ export default function Game() {
         .then(res => res.json())
         .then(data => {
           if (data && data.bestScore !== undefined) {
-             setHighScore(Math.max(parseInt(saved || "0"), data.bestScore))
+             // Sync: DB is the source of truth for high scores
+             setHighScore(data.bestScore)
+             localStorage.setItem('shifter_high_score', data.bestScore.toString())
           }
         }).catch(console.error)
     }
@@ -612,7 +620,10 @@ export default function Game() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ walletAddress: address, score: 0, earnings: 0 }),
       }).then(r => r.json()).then(data => {
-        if (data.bestScore !== undefined) setHighScore(prev => Math.max(prev, data.bestScore))
+        if (data.bestScore !== undefined) {
+          setHighScore(data.bestScore)
+          localStorage.setItem('shifter_high_score', data.bestScore.toString())
+        }
       }).catch(console.error)
     } catch (err) {
       console.error('Wallet connection failed:', err)
