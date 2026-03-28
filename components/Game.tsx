@@ -340,17 +340,14 @@ export default function Game() {
 
     state.cameraY -= state.speed
     state.score++
-    const isHardMode = state.score > 20000
+    const isHardMode = state.score > 100000 // Functions as standard mode indefinitely
 
-    // Every 5,000 points, slightly shift the cruising phase
+    // Strategic Step: Maintain Base Cruising speed, increasing by 1% every 5,000 points
     const phase = Math.floor(state.score / 5000)
-    let targetSpeed = BASE_SPEED + (phase > 0 ? (phase * 0.5) : 0)
+    const targetSpeed = BASE_SPEED * (1 + (phase * 0.01))
     
-    // Hard mode activates at 20,000+
-    if (state.score >= 20000) targetSpeed += HARD_MODE_SPEED_BOOST
-    
-    // Smooth transition to phase target
-    state.speed = Math.min(state.speed + 0.002, Math.min(targetSpeed, MAX_SPEED))
+    // Immediate sync to phase speed
+    state.speed = Math.min(targetSpeed, MAX_SPEED)
 
     state.particles = state.particles
       .map(p => ({ ...p, x: p.x + p.vx, y: p.y + p.vy, life: p.life - 0.05 }))
