@@ -32,38 +32,42 @@ export async function POST(req: NextRequest) {
     if (task.type === 'HOLD_X_LAYER_ANY') {
       try {
         // Use Onchain OS skill to get real-time balances and prices
+        // Use Onchain OS skill - Public portfolio query for the user's address
         const cmd = `onchainos portfolio all-balances --address ${walletAddress} --chains "196"`
         const rawOutput = execSync(cmd).toString()
         
-        // Extract JSON specifically in case of extra CLI output
+        // Extract JSON specifically
         const jsonMatch = rawOutput.match(/\{[\s\S]*\}/)
-        if (!jsonMatch) throw new Error('No JSON output from OnchainOS')
+        if (!jsonMatch) throw new Error('No valid response from verification engine')
         const result = JSON.parse(jsonMatch[0])
         
         if (result.ok && result.data) {
           let totalUsd = 0
-          // The data can be an array of chain results OR a single object
-          const chainResults = Array.isArray(result.data) ? result.data : [result.data]
+          // Handle both array and single object responses
+          const data = result.data
+          const chainResults = Array.isArray(data) ? data : (data.tokenAssets ? [data] : [])
           
           chainResults.forEach((chain: any) => {
             if (chain.tokenAssets) {
               chain.tokenAssets.forEach((asset: any) => {
                 const price = parseFloat(asset.tokenPrice || "0")
                 const balance = parseFloat(asset.balance || "0")
-                totalUsd += price * balance
-                console.log(`[Verify] Found token ${asset.symbol}: Balance ${balance}, Price ${price}, USD: ${price * balance}`)
+                if (price > 0 && balance > 0) {
+                  totalUsd += price * balance
+                  console.log(`[Verify] Token ${asset.symbol}: ${balance} @ $${price} = $${(price * balance).toFixed(2)}`)
+                }
               })
             }
           })
           
-          userBalanceMsg = `You hold $${totalUsd.toFixed(2)} across your X Layer assets.`
+          userBalanceMsg = `Neural scan complete. Your X Layer holdings: $${totalUsd.toFixed(2)} USD.`
           if (totalUsd >= (task.targetValue || 1.0)) {
             isQualified = true
           }
         }
       } catch (err: any) {
-        console.error('OnchainOS Error:', err.message)
-        return NextResponse.json({ error: `OnchainOS CLI Error: ${err.message}` }, { status: 500 })
+        console.error('Verification Engine Error:', err.message)
+        return NextResponse.json({ error: `Verification System Sync Error. Please retry in 60s.` }, { status: 500 })
       }
     } else if (task.type === 'FOLLOW_TWITTER' || task.type === 'SWAP_XDOG' || task.type === 'SWAP_OKB') {
       isQualified = true

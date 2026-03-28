@@ -103,8 +103,8 @@ export default function Game() {
     }
   }, [])
 
-  const [dimensions, setDimensions] = useState({ width: 340, height: 600 })
-  const dimensionsRef = useRef({ width: 340, height: 600 })
+  const [dimensions, setDimensions] = useState({ width: 400, height: 700 })
+  const dimensionsRef = useRef({ width: 400, height: 700 })
 
   useEffect(() => {
     const updateSize = () => {
@@ -146,6 +146,7 @@ export default function Game() {
   })
 
   const gameAreaRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animFrameRef = useRef<number>(0)
   const touchStartX = useRef<number>(0)
@@ -604,16 +605,19 @@ export default function Game() {
   if (!hasHydrated) return null
 
   return (
-    <div
-      ref={gameAreaRef}
-      className={`relative overflow-hidden select-none ${gameState === 'playing' ? 'cursor-none' : 'cursor-default'}`}
-      style={{
-        width: '100%',
-        height: '100%',
-        background: 'linear-gradient(180deg, #030712 0%, #0f172a 50%, #030712 100%)',
-        touchAction: 'none'
-      }}
-    >
+    <div ref={containerRef} className="flex items-center justify-center w-full h-full p-4 overflow-hidden">
+      <div
+        ref={gameAreaRef}
+        className={`relative overflow-hidden select-none shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/10 ${gameState === 'playing' ? 'cursor-none' : 'cursor-default'}`}
+        style={{
+          width: '100%',
+          maxWidth: '420px',
+          height: '100%',
+          maxHeight: '720px',
+          background: 'linear-gradient(180deg, #030712 0%, #0f172a 50%, #030712 100%)',
+          touchAction: 'none'
+        }}
+      >
       <canvas
         ref={canvasRef}
         width={dimensions.width}
@@ -626,50 +630,50 @@ export default function Game() {
         <div className="absolute inset-0 flex flex-col items-center justify-center z-50 bg-neon-dark/80 backdrop-blur-md pointer-events-auto border border-neon-blue/20 clip-both shadow-[0_0_50px_rgba(0,240,255,0.1)]">
           <div className="absolute top-0 w-full h-1 bg-gradient-to-r from-transparent via-neon-blue to-transparent opacity-50 shadow-[0_0_10px_#00F0FF]"></div>
           
-          <h1 className="text-5xl sm:text-7xl font-display font-black mb-4 animate-pulse-glow tracking-[0.05em] text-transparent bg-clip-text bg-gradient-to-br from-white via-neon-green to-neon-blue text-center px-6 w-full shrink-0">
+          <h1 className="text-4xl sm:text-5xl font-display font-black mb-2 animate-pulse-glow tracking-[0.05em] text-transparent bg-clip-text bg-gradient-to-br from-white via-neon-green to-neon-blue text-center px-4 w-full shrink-0">
             SHIFTER
           </h1>
-          <p className="text-neon-blue text-xs mb-1 uppercase tracking-[0.4em] font-bold text-center">» Dodge · Collect · Earn</p>
-          <p className="text-white/40 text-[10px] mb-8 uppercase tracking-[0.3em] text-center">Protocol: Extractions enabled via X Layer</p>
+          <p className="text-neon-blue text-[10px] mb-1 uppercase tracking-[0.3em] font-bold text-center">» Dodge · Collect · Earn</p>
+          <p className="text-white/40 text-[9px] mb-4 uppercase tracking-[0.2em] text-center">Protocol: Extractions enabled via X Layer</p>
 
-          <div className="mb-8 w-full max-w-[320px]">
+          <div className="mb-4 w-full max-w-[280px]">
             {highScore > 0 ? (
-              <div className="bg-black/60 px-8 py-4 border-l-4 border-neon-pink clip-edge relative overflow-hidden group text-center">
+              <div className="bg-black/60 px-6 py-3 border-l-4 border-neon-pink clip-edge relative overflow-hidden group text-center">
                 <div className="absolute inset-0 bg-neon-pink/5 group-hover:bg-neon-pink/10 transition-colors"></div>
-                <p className="text-[12px] text-neon-pink uppercase tracking-[0.3em] mb-1 font-bold">Personal High Score</p>
-                <p className="text-4xl font-display font-black text-white drop-shadow-[0_0_15px_rgba(255,0,60,0.6)]">{highScore}</p>
+                <p className="text-[10px] text-neon-pink uppercase tracking-[0.2em] mb-1 font-bold">Personal High Score</p>
+                <p className="text-3xl font-display font-black text-white drop-shadow-[0_0_10px_rgba(255,0,60,0.6)]">{highScore}</p>
               </div>
             ) : (
-              <div className="bg-black/40 px-8 py-4 border-l-4 border-white/20 clip-edge text-center opacity-50">
-                <p className="text-[12px] text-white/40 uppercase tracking-[0.3em] font-bold">Awaiting Primary Run</p>
-                <p className="text-2xl font-display font-black text-white/20">-- --</p>
+              <div className="bg-black/40 px-6 py-3 border-l-4 border-white/20 clip-edge text-center opacity-50">
+                <p className="text-[10px] text-white/40 uppercase tracking-[0.2em] font-bold">Awaiting Primary Run</p>
+                <p className="text-xl font-display font-black text-white/20">-- --</p>
               </div>
             )}
           </div>
 
-          <div className="mb-10 w-full max-w-[320px] bg-white/5 border border-white/10 p-5 clip-both relative group text-left">
+          <div className="mb-6 w-full max-w-[280px] bg-white/5 border border-white/10 p-4 clip-both relative group text-left">
             <div className="absolute top-0 left-0 w-2 h-2 bg-neon-blue"></div>
-            <p className="text-[10px] text-neon-blue uppercase tracking-[0.3em] font-bold mb-3">MISSION BRIEFING</p>
-            <ul className="text-[11px] text-white/70 space-y-2 font-display tracking-widest leading-relaxed">
-              <li className="flex gap-3"><span className="text-neon-blue font-bold">01.</span> Match your color to pass security barriers.</li>
-              <li className="flex gap-3"><span className="text-neon-blue font-bold">02.</span> Collect orbs to shift your neural color.</li>
-              <li className="flex gap-3"><span className="text-neon-blue font-bold">03.</span> Extract USDC coins for real-world yield.</li>
+            <p className="text-[9px] text-neon-blue uppercase tracking-[0.2em] font-bold mb-2">MISSION BRIEFING</p>
+            <ul className="text-[10px] text-white/70 space-y-1.5 font-display tracking-widest leading-relaxed">
+              <li className="flex gap-2"><span className="text-neon-blue font-bold">01.</span> Neural matching via security gates.</li>
+              <li className="flex gap-2"><span className="text-neon-blue font-bold">02.</span> Collect orbs for color shifts.</li>
+              <li className="flex gap-2"><span className="text-neon-blue font-bold">03.</span> Extract USDC for real-world yield.</li>
             </ul>
           </div>
 
           <button
             onClick={() => walletAddress ? startGame() : connectWallet()}
-            className={`clip-edge px-12 py-5 text-lg font-display font-black mb-8 transition-all hover:scale-[1.05] active:scale-95 shadow-[0_0_40px_rgba(34,197,94,0.3)] inset-ring ${
+            className={`clip-edge px-8 py-3 text-sm font-display font-black mb-6 transition-all hover:scale-[1.05] active:scale-95 shadow-[0_0_20px_rgba(34,197,94,0.3)] inset-ring ${
               walletAddress ? 'bg-neon-green text-black hover:bg-white' : 'bg-neon-blue text-white hover:bg-neon-blue/80 animate-pulse'
             }`}
           >
             {walletAddress ? '[ INITIATE EXTRACTION ]' : '[ LINK SYSTEM TO START ]'}
           </button>
 
-          <div className="flex flex-col sm:flex-row gap-4 mb-8 pointer-events-auto w-full max-w-[320px] px-2">
+          <div className="flex flex-col sm:flex-row gap-3 mb-6 pointer-events-auto w-full max-w-[280px] px-2">
             <button 
               onClick={() => walletAddress ? router.push('/leaderboard') : connectWallet()}
-              className={`clip-edge-rev flex-1 py-3 text-[11px] font-bold uppercase tracking-[0.2em] transition-all shadow-[0_0_15px_rgba(0,240,255,0.1)] ${
+              className={`clip-edge-rev flex-1 py-3 text-[10px] font-bold uppercase tracking-[0.2em] transition-all shadow-[0_0_15px_rgba(0,240,255,0.1)] ${
                 walletAddress ? 'bg-neon-dark border border-neon-blue/50 text-neon-blue hover:bg-neon-blue/10 cursor-pointer' : 'bg-black/80 border border-white/10 text-white/30 cursor-not-allowed'
               }`}
             >
@@ -677,7 +681,7 @@ export default function Game() {
             </button>
             <button 
               onClick={() => walletAddress ? router.push('/tasks') : connectWallet()}
-              className={`clip-edge-rev flex-1 py-3 text-[11px] font-bold uppercase tracking-[0.2em] transition-all shadow-[0_0_15px_rgba(176,38,255,0.1)] ${
+              className={`clip-edge-rev flex-1 py-3 text-[10px] font-bold uppercase tracking-[0.2em] transition-all shadow-[0_0_15px_rgba(176,38,255,0.1)] ${
                 walletAddress ? 'bg-neon-dark border border-neon-purple/50 text-neon-purple hover:bg-neon-purple/10 cursor-pointer' : 'bg-black/80 border border-white/10 text-white/30 cursor-not-allowed'
               }`}
             >
@@ -688,22 +692,22 @@ export default function Game() {
           {!walletAddress ? (
             <button
               onClick={connectWallet}
-              className="clip-both px-8 py-3 text-xs font-bold bg-neon-blue/10 border border-neon-blue text-neon-blue hover:bg-neon-blue hover:text-black transition-all active:scale-95 flex items-center justify-center gap-2 tracking-widest text-center"
+              className="clip-both px-6 py-3 text-[10px] font-bold bg-neon-blue/10 border border-neon-blue text-neon-blue hover:bg-neon-blue hover:text-black transition-all active:scale-95 flex items-center justify-center gap-2 tracking-widest text-center"
             >
               CONNECT NEURAL LINK
             </button>
           ) : (
-            <div className="flex items-center gap-4 bg-black/60 px-6 py-3 border-r-4 border-neon-blue">
-              <Link href="/profile" className="text-[11px] font-bold text-neon-pink hover:text-white uppercase tracking-[0.2em] transition-colors border-r border-white/20 pr-4">
-                AGENT PROFILE
+            <div className="flex items-center gap-3 bg-black/60 px-4 py-2 border-r-4 border-neon-blue mb-4">
+              <Link href="/profile" className="text-[10px] font-bold text-neon-pink hover:text-white uppercase tracking-[0.2em] transition-colors border-r border-white/20 pr-3">
+                PROFILE
               </Link>
               <div className="group relative flex flex-col items-center justify-center cursor-pointer">
-                <p className="text-[11px] text-neon-blue font-mono group-hover:text-neon-pink transition-colors">
-                  {walletAddress.slice(0, 8)}...{walletAddress.slice(-6)}
+                <p className="text-[10px] text-neon-blue font-mono group-hover:text-neon-pink transition-colors">
+                  {walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : 'UNKNOWN'}
                 </p>
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 hidden group-hover:flex items-center justify-center bg-black/90 w-full h-full">
-                  <button onClick={disconnectWallet} className="text-[11px] font-bold text-neon-pink flex items-center gap-1">
-                    <span className="animate-pulse">⚠️</span> DISCONNECT
+                  <button onClick={disconnectWallet} className="text-[10px] font-bold text-neon-pink flex items-center gap-1">
+                    DISCONNECT
                   </button>
                 </div>
               </div>
@@ -729,26 +733,26 @@ export default function Game() {
       {/* ===== GAME OVER SCREEN ===== */}
       {gameState === 'gameover' && (
         <div className="absolute inset-0 flex flex-col items-center justify-center z-50 bg-neon-dark/95 backdrop-blur-md p-6 text-center pointer-events-auto border-t-4 border-neon-pink">
-          <h2 className="text-4xl font-display font-black mb-1 animate-flicker text-neon-pink tracking-[0.1em] drop-shadow-[0_0_15px_rgba(255,0,60,0.8)]">SYSTEM</h2>
-          <h3 className="text-xl font-display font-black mb-8 text-white tracking-[0.3em]">OVERLOAD</h3>
+          <h2 className="text-3xl font-display font-black mb-1 animate-flicker text-neon-pink tracking-[0.1em] drop-shadow-[0_0_15px_rgba(255,0,60,0.8)]">SYSTEM</h2>
+          <h3 className="text-lg font-display font-black mb-6 text-white tracking-[0.3em]">OVERLOAD</h3>
           
           <div className="grid grid-cols-2 gap-4 w-full max-w-sm mb-10">
-            <div className="bg-black/40 p-4 border border-neon-blue/30 clip-edge relative overflow-hidden group text-center">
+            <div className="bg-black/40 p-3 border border-neon-blue/30 clip-edge relative overflow-hidden group text-center">
               <div className="absolute inset-0 bg-neon-blue/5 group-hover:bg-neon-blue/10 transition-colors"></div>
-              <p className="text-[10px] text-neon-blue uppercase tracking-widest mb-1">Final Score</p>
-              <p className="text-2xl font-display font-bold text-white relative z-10">{displayScore}</p>
+              <p className="text-[9px] text-neon-blue uppercase tracking-widest mb-1">Final Score</p>
+              <p className="text-xl font-display font-bold text-white relative z-10">{displayScore}</p>
             </div>
-            <div className="bg-black/40 p-4 border border-yellow-500/30 clip-edge-rev relative overflow-hidden group text-center">
+            <div className="bg-black/40 p-3 border border-yellow-500/30 clip-edge-rev relative overflow-hidden group text-center">
               <div className="absolute inset-0 bg-yellow-500/5 group-hover:bg-yellow-500/10 transition-colors"></div>
-              <p className="text-[10px] text-yellow-500 uppercase tracking-widest mb-1">USDC Extractions</p>
-              <p className="text-2xl font-display font-bold text-white relative z-10">${displaySessionEarnings.toFixed(2)}</p>
+              <p className="text-[9px] text-yellow-500 uppercase tracking-widest mb-1">USDC Extractions</p>
+              <p className="text-xl font-display font-bold text-white relative z-10">${displaySessionEarnings.toFixed(2)}</p>
             </div>
           </div>
 
           <div className="flex flex-col gap-3 w-full max-w-sm">
             <button
               onClick={startGame}
-              className="clip-both py-4 text-lg font-display font-bold bg-white text-black hover:bg-neon-blue hover:text-black transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_30px_rgba(0,240,255,0.5)] mb-2"
+              className="clip-both py-3 text-base font-display font-bold bg-white text-black hover:bg-neon-blue hover:text-black transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_30px_rgba(0,240,255,0.5)] mb-2"
             >
               [ REBOOT SEQUENCE ]
             </button>
@@ -769,7 +773,7 @@ export default function Game() {
             </div>
             <button
                 onClick={() => walletAddress ? router.push('/tasks') : connectWallet()}
-                className="clip-both w-full py-4 text-xs font-bold bg-neon-purple/20 border border-neon-purple text-neon-purple hover:bg-neon-purple hover:text-white transition-all tracking-[0.2em] shadow-[0_0_15px_rgba(176,38,255,0.2)] hover:shadow-[0_0_25px_rgba(176,38,255,0.6)] pointer-events-auto"
+                className="clip-both w-full py-3 text-[10px] font-bold bg-neon-purple/20 border border-neon-purple text-neon-purple hover:bg-neon-purple hover:text-white transition-all tracking-[0.2em] shadow-[0_0_15px_rgba(176,38,255,0.2)] hover:shadow-[0_0_25px_rgba(176,38,255,0.6)] pointer-events-auto"
               >
                 ACCESS BOUNTIES
             </button>
@@ -792,6 +796,7 @@ export default function Game() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

@@ -21,21 +21,6 @@ async function main() {
       targetValue: null
     };
 
-    const task3 = {
-      id: 'swap_xdog_1',
-      title: 'Acquire $XDOG',
-      description: 'Use the terminal router to swap $0.05 USDC for $XDOG on X Layer Mainnet.',
-      reward: 0.01,
-      type: 'SWAP_XDOG',
-      targetValue: null
-    };
-
-    await prisma.task.upsert({
-      where: { id: task1.id },
-      update: { reward: task1.reward, description: task1.description },
-      create: task1
-    });
-
     const task4 = {
       id: 'swap_okb_1',
       title: 'Acquire $OKB Gas',
@@ -44,6 +29,12 @@ async function main() {
       type: 'SWAP_OKB',
       targetValue: null
     };
+
+    await prisma.task.upsert({
+      where: { id: task1.id },
+      update: { reward: task1.reward, description: task1.description },
+      create: task1
+    });
 
     await prisma.task.upsert({
       where: { id: task2.id },
@@ -55,12 +46,6 @@ async function main() {
       where: { id: task4.id },
       update: { reward: task4.reward, description: task4.description },
       create: task4
-    });
-
-    await prisma.task.upsert({
-      where: { id: task3.id },
-      update: { reward: task3.reward, description: task3.description },
-      create: task3
     });
 
     console.log('Tasks seeded successfully');

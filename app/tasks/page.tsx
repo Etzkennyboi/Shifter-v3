@@ -218,20 +218,6 @@ export default function TasksPage() {
                     >
                       [ 1 : FOLLOW @XLayerOfficial ]
                     </button>
-                  ) : task.id === 'swap_xdog_1' && !task.isCompleted ? (
-                    <button
-                      disabled={verifyingId === task.id || !walletAddress}
-                      onClick={() => handleSwapTask(task.id, 'XDOG')}
-                      className={`w-full py-4 clip-edge-rev font-display font-bold tracking-[0.2em] transition-all duration-300 text-sm ${
-                        verifyingId === task.id
-                          ? 'bg-neon-blue/20 text-neon-blue animate-pulse border border-neon-blue/50 cursor-wait'
-                          : !walletAddress
-                          ? 'bg-black/40 text-white/20 border border-white/10 cursor-not-allowed'
-                          : 'bg-yellow-500/20 text-yellow-500 border border-yellow-500 hover:bg-yellow-500 hover:text-black shadow-[0_0_15px_rgba(234,179,8,0.2)] hover:shadow-[0_0_25px_rgba(234,179,8,0.6)] active:scale-95'
-                      }`}
-                    >
-                      {verifyingId === task.id ? '[ ROUTING SWAP... ]' : '[ EXECUTE $XDOG SWAP ]'}
-                    </button>
                   ) : task.id === 'swap_okb_1' && !task.isCompleted ? (
                     <button
                       disabled={verifyingId === task.id || !walletAddress}

@@ -13,14 +13,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Missing walletAddress' }, { status: 400 })
   }
 
-  const targetToken = searchParams.get('targetToken') || 'XDOG'
+  const targetToken = 'OKB'
 
   const USDC = '0x74b7f16337b8972027f6196a17a631ac6de26d22'
-  const XDOG = '0x0cc24c51bf89c00c5affbfcf5e856c25ecbdb48e'
   const OKB_NATIVE = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
   const AMOUNT = '50000'
 
-  const toToken = targetToken === 'OKB' ? OKB_NATIVE : XDOG
+  const toToken = OKB_NATIVE
 
   // V6 API: chainIndex instead of chainId, slippagePercent instead of slippage
   const path = `/api/v6/dex/aggregator/swap?chainIndex=196&amount=${AMOUNT}&fromTokenAddress=${USDC}&toTokenAddress=${toToken}&userWalletAddress=${walletAddress}&slippagePercent=3`
