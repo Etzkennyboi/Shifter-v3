@@ -121,9 +121,9 @@ export default function Game() {
   }, [])
 
   const getDynamicSpacing = useCallback((score: number) => {
-    const startSpacing = 550
-    const endSpacing = 280
-    const progress = Math.min(score / 3000, 1)
+    const startSpacing = 600
+    const endSpacing = 260
+    const progress = Math.min(score / 10000, 1) // Substantially easier progression
     return startSpacing - (startSpacing - endSpacing) * progress
   }, [])
 
@@ -152,26 +152,32 @@ export default function Game() {
   const touchStartX = useRef<number>(0)
 
   // ===== HELPERS =====
-  const generateObstacle = useCallback((yPos: number, id: number, safeColor: string, isHardMode: boolean, safeColor2?: string): Obstacle => {
+  const generateObstacle = useCallback((yPos: number, id: number, safeColor: string | null, isHardMode: boolean, safeColor2?: string, forbiddenColor?: string): Obstacle => {
     const numSections = 4
-    const safePalette = [safeColor, safeColor2].filter(Boolean) as string[]
-    const dangerousColors = COLORS.filter(c => !safePalette.includes(c))
+    
+    // Logic for "Shift to Pass": If safeColor is "shift_required", the forbiddenColor (usually player current)
+    // is restricted. passage will definitely be safeColor2 (the orb color).
+    const filteredColors = COLORS.filter(c => c !== forbiddenColor)
+    const basePalette = (safeColor === "shift_required" && forbiddenColor) ? filteredColors : COLORS
 
     const sections: string[] = Array(numSections).fill(0).map(() =>
-      dangerousColors.length > 0
-        ? dangerousColors[Math.floor(Math.random() * dangerousColors.length)]
-        : COLORS[0]
+      basePalette[Math.floor(Math.random() * basePalette.length)]
     )
 
-    sections[Math.floor(Math.random() * numSections)] = safeColor
-    if (safeColor2 && safeColor2 !== safeColor && numSections > 1) {
-      const primarySlot = sections.lastIndexOf(safeColor)
+    // Ensure at least one passage exists
+    const passageColor = (safeColor === "shift_required" && safeColor2) ? safeColor2 : (safeColor || COLORS[0])
+    sections[Math.floor(Math.random() * numSections)] = passageColor
+    
+    // safeColor2 adds a second passage (usually for the orb color if not already mandatory)
+    if (safeColor2 && safeColor2 !== passageColor && numSections > 1) {
+      const primarySlot = sections.lastIndexOf(passageColor)
       let secondarySlot: number
       do {
         secondarySlot = Math.floor(Math.random() * numSections)
       } while (secondarySlot === primarySlot)
       sections[secondarySlot] = safeColor2
     }
+
     return { id, y: yPos, sections }
   }, [])
 
@@ -357,15 +363,28 @@ export default function Game() {
       const newY = farthestObstacleY - dynamicSpacing
       const obsId = state.nextObstacleId++
 
-      if (obsId % 3 === 0) {
+      const shouldSpawnOrb = Math.random() < 0.3
+      const shouldSpawnCoin = !shouldSpawnOrb && Math.random() < 0.4 // Mutually exclusive for better spacing
+
+      if (shouldSpawnOrb) {
         const orb = generateColorOrb(newY + (dynamicSpacing / 2), obsId, state.playerColor)
         state.colorOrbs.push(orb)
-        state.obstacles.push(generateObstacle(newY, obsId, state.playerColor, isHardMode, orb.newColor))
+        
+        // "Shift to Pass" logic: 35% chance user MUST pick up the orb to survive the next gate
+        const isMandatoryShift = state.score > 500 && Math.random() < 0.35
+        if (isMandatoryShift) {
+          state.obstacles.push(generateObstacle(newY, obsId, "shift_required", isHardMode, orb.newColor, state.playerColor))
+        } else {
+          state.obstacles.push(generateObstacle(newY, obsId, state.playerColor, isHardMode, orb.newColor))
+        }
       } else {
         state.obstacles.push(generateObstacle(newY, obsId, state.playerColor, isHardMode))
+        
+        if (shouldSpawnCoin) {
+          const coins = generateUSDCCoins(newY + (dynamicSpacing / 2), obsId * 10, isHardMode).slice(0, 1)
+          state.usdcCoins.push(...coins)
+        }
       }
-      const coins = generateUSDCCoins(newY + 100, obsId * 10, isHardMode).slice(0, 1)
-      state.usdcCoins.push(...coins)
     }
 
     const cleanupY = state.cameraY + height + 200
@@ -492,11 +511,14 @@ export default function Game() {
       const y = -(i + 1) * dynamicSpacing
       const id = state.nextObstacleId++
       state.obstacles.push(generateObstacle(y, id, state.playerColor, false))
-      if (id % 3 === 0) {
+      
+      const shouldOrb = Math.random() < 0.1 // Low chance for starting orbs
+      if (shouldOrb) {
         state.colorOrbs.push(generateColorOrb(y + (dynamicSpacing / 2), id, state.playerColor))
+      } else if (Math.random() < 0.3) {
+        const coins = generateUSDCCoins(y + (dynamicSpacing / 2), id * 10, false).slice(0, 1)
+        state.usdcCoins.push(...coins)
       }
-      const coins = generateUSDCCoins(y + 100, id * 10, false).slice(0, 1)
-      state.usdcCoins.push(...coins)
     }
 
     animFrameRef.current = requestAnimationFrame(gameLoop)
