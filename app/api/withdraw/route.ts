@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   
   try {
     const body = await req.json()
-    walletAddress = body.walletAddress
+    walletAddress = body.walletAddress.toLowerCase()
     amount = body.amount
     score = body.score
     signature = body.signature

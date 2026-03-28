@@ -3,13 +3,16 @@ import { prisma } from '@/lib/db'
 import { ethers } from 'ethers'
 import { execSync } from 'child_process'
 
+export const dynamic = 'force-dynamic'
+
 const XLAYER_RPC = 'https://rpc.xlayer.tech'
 const USDC_ADDRESS = '0x74b7f16337b8972027f6196a17a631ac6de26d22'
 const USDC_ABI = ['function balanceOf(address owner) view returns (uint256)', 'function decimals() view returns (uint8)']
 
 export async function POST(req: NextRequest) {
   try {
-    const { taskId, walletAddress } = await req.json()
+    const { taskId, walletAddress: rawAddress } = await req.json()
+    const walletAddress = rawAddress.toLowerCase()
 
     if (!taskId || !walletAddress) {
       return NextResponse.json({ error: 'Missing taskId or walletAddress' }, { status: 400 })
@@ -33,21 +36,44 @@ export async function POST(req: NextRequest) {
       try {
         // Use Onchain OS skill to get real-time balances and prices
         // Use Onchain OS skill - Public portfolio query for the user's address
-        const cmd = `onchainos portfolio total-value --address ${walletAddress} --chains "196"`
-        const rawOutput = execSync(cmd).toString()
+        // Use direct OKX Wallet API to avoid CLI dependency
+        const OKX_API_KEY = '28c9786b-053b-48df-959f-0d6beacc1d0a'
+        const OKX_SECRET_KEY = '8AE96E275EE85DD891AF588E59F822AD'
+        const OKX_PASSPHRASE = '$Skippy2000'
+
+        const url = `https://www.okx.com/api/v1/wallet/token/token-assets-v2?address=${walletAddress}&chainIndex=196`
+        const timestamp = new Date().toISOString()
+        const method = 'GET'
+        const path = `/api/v1/wallet/token/token-assets-v2?address=${walletAddress}&chainIndex=196`
+        const signStr = `${timestamp}${method}${path}`
         
-        const jsonMatch = rawOutput.match(/\{[\s\S]*\}/)
-        if (!jsonMatch) throw new Error('No valid response from verification engine')
-        const result = JSON.parse(jsonMatch[0])
+        const crypto = require('crypto')
+        const signature = crypto.createHmac('sha256', OKX_SECRET_KEY).update(signStr).digest('base64')
+
+        const res = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'OK-ACCESS-KEY': OKX_API_KEY,
+            'OK-ACCESS-SIGN': signature,
+            'OK-ACCESS-PASSPHRASE': OKX_PASSPHRASE,
+            'OK-ACCESS-TIMESTAMP': timestamp,
+            'Content-Type': 'application/json'
+          }
+        })
+
+        const result = await res.json()
         
-        if (result.ok && result.data && result.data[0]) {
+        if (result.code === '0' && result.data && result.data[0]) {
           const totalUsd = parseFloat(result.data[0].totalValue || "0")
-          console.log(`[Verify] User ${walletAddress} total value on X Layer: $${totalUsd}`)
+          console.log(`[Verify API] User ${walletAddress} portfolio total: $${totalUsd}`)
           
           userBalanceMsg = `Neural scan complete. Your X Layer holdings: $${totalUsd.toFixed(2)} USD.`
           if (totalUsd >= (task.targetValue || 1.0)) {
             isQualified = true
           }
+        } else {
+          console.error('[Verify API] OKX API Error:', result)
+          throw new Error('Verification Engine unreachable')
         }
       } catch (err: any) {
         console.error('Verification Engine Error:', err.message)

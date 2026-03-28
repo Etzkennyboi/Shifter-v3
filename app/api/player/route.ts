@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const walletAddress = searchParams.get('walletAddress')
+  const walletAddress = searchParams.get('walletAddress')?.toLowerCase()
 
   if (!walletAddress) {
     return NextResponse.json({ error: 'Wallet address required' }, { status: 400 })
@@ -57,7 +59,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { walletAddress, score, earnings } = await req.json()
+    let { walletAddress, score, earnings } = await req.json()
+    walletAddress = walletAddress.toLowerCase()
     
     if (!walletAddress || score === undefined) {
       return NextResponse.json({ error: 'Missing wallet or score' }, { status: 400 })
@@ -65,6 +68,7 @@ export async function POST(req: NextRequest) {
 
     const existingPlayer = await prisma.player.findUnique({ where: { walletAddress } })
     const newBestScore = Math.max(existingPlayer?.bestScore || 0, score)
+    console.log(`[Player API] Updating ${walletAddress}: Score ${score}, Existing Best: ${existingPlayer?.bestScore || 0}, New Best: ${newBestScore}`)
 
     const player = await prisma.player.upsert({
       where: { walletAddress },
