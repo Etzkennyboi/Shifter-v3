@@ -4,7 +4,7 @@ import { prisma } from '@/lib/db'
 export async function GET(req: NextRequest) {
   try {
     const players = await prisma.player.findMany({
-      orderBy: { totalEarned: 'desc' },
+      orderBy: { bestScore: 'desc' },
       take: 10,
       select: {
         walletAddress: true,

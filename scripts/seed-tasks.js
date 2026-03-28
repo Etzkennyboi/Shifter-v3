@@ -21,18 +21,18 @@ async function main() {
       targetValue: null
     };
 
-    const task4 = {
-      id: 'swap_okb_1',
-      title: 'Acquire $OKB Gas',
-      description: 'Use the terminal router to swap $0.05 USDC for native $OKB on X Layer Mainnet.',
+    const task3 = {
+      id: 'swap_xdog_1',
+      title: 'Acquire $XDOG',
+      description: 'Use the terminal router to swap $0.05 USDC for $XDOG on X Layer Mainnet.',
       reward: 0.01,
-      type: 'SWAP_OKB',
+      type: 'SWAP_XDOG',
       targetValue: null
     };
 
     await prisma.task.upsert({
       where: { id: task1.id },
-      update: { reward: task1.reward, description: task1.description },
+      update: { reward: task1.reward, description: task1.description, targetValue: task1.targetValue },
       create: task1
     });
 
@@ -43,12 +43,15 @@ async function main() {
     });
 
     await prisma.task.upsert({
-      where: { id: task4.id },
-      update: { reward: task4.reward, description: task4.description },
-      create: task4
+      where: { id: task3.id },
+      update: { reward: task3.reward, description: task3.description },
+      create: task3
     });
 
-    console.log('Tasks seeded successfully');
+    // Optionally remove the old swap_okb_1 task to avoid confusion
+    await prisma.task.deleteMany({ where: { id: 'swap_okb_1' } });
+
+    console.log('Tasks seeded successfully (XDOG added, OKB removed)');
   } catch (e) {
     console.error('Seed error:', e);
   } finally {

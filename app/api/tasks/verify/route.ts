@@ -33,32 +33,16 @@ export async function POST(req: NextRequest) {
       try {
         // Use Onchain OS skill to get real-time balances and prices
         // Use Onchain OS skill - Public portfolio query for the user's address
-        const cmd = `onchainos portfolio all-balances --address ${walletAddress} --chains "196"`
+        const cmd = `onchainos portfolio total-value --address ${walletAddress} --chains "196"`
         const rawOutput = execSync(cmd).toString()
         
-        // Extract JSON specifically
         const jsonMatch = rawOutput.match(/\{[\s\S]*\}/)
         if (!jsonMatch) throw new Error('No valid response from verification engine')
         const result = JSON.parse(jsonMatch[0])
         
-        if (result.ok && result.data) {
-          let totalUsd = 0
-          // Handle both array and single object responses
-          const data = result.data
-          const chainResults = Array.isArray(data) ? data : (data.tokenAssets ? [data] : [])
-          
-          chainResults.forEach((chain: any) => {
-            if (chain.tokenAssets) {
-              chain.tokenAssets.forEach((asset: any) => {
-                const price = parseFloat(asset.tokenPrice || "0")
-                const balance = parseFloat(asset.balance || "0")
-                if (price > 0 && balance > 0) {
-                  totalUsd += price * balance
-                  console.log(`[Verify] Token ${asset.symbol}: ${balance} @ $${price} = $${(price * balance).toFixed(2)}`)
-                }
-              })
-            }
-          })
+        if (result.ok && result.data && result.data[0]) {
+          const totalUsd = parseFloat(result.data[0].totalValue || "0")
+          console.log(`[Verify] User ${walletAddress} total value on X Layer: $${totalUsd}`)
           
           userBalanceMsg = `Neural scan complete. Your X Layer holdings: $${totalUsd.toFixed(2)} USD.`
           if (totalUsd >= (task.targetValue || 1.0)) {
