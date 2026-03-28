@@ -121,10 +121,10 @@ export default function Game() {
   }, [])
 
   const getDynamicSpacing = useCallback((score: number) => {
-    const startSpacing = 600
-    const endSpacing = 260
-    const progress = Math.min(score / 10000, 1) // Substantially easier progression
-    return startSpacing - (startSpacing - endSpacing) * progress
+    // Every 5,000 points, the passage security system tightens slightly
+    const phase = Math.floor(score / 5000)
+    const spacing = 600 - (phase * 50) 
+    return Math.max(spacing, 250) // Never tighter than 250px
   }, [])
 
   // ===== GAME REFS (mutable, no re-renders) =====
