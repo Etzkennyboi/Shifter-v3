@@ -208,15 +208,22 @@ export default function TasksPage() {
                   <h3 className="text-lg font-display font-bold mb-1 tracking-widest uppercase pl-2 text-white">{task.title}</h3>
                   <p className="text-xs text-white/50 leading-relaxed mb-6 italic tracking-widest pl-2">{task.description}</p>
 
-                  {task.id === 'twitter_follow_1' && !task.isCompleted && !hasFollowed ? (
+                  {task.id === 'twitter_follow_1' && !task.isCompleted ? (
                     <button
+                      disabled={verifyingId === task.id || !walletAddress}
                       onClick={() => {
+                        handleVerify(task.id)
                         window.open('https://x.com/XLayerOfficial?s=20', '_blank')
-                        setHasFollowed(true)
                       }}
-                      className="w-full py-4 clip-edge-rev font-display font-bold tracking-[0.2em] bg-neon-blue/20 text-neon-blue border border-neon-blue hover:bg-neon-blue hover:text-black shadow-[0_0_15px_rgba(0,240,255,0.2)] hover:shadow-[0_0_25px_rgba(0,240,255,0.6)] active:scale-95 transition-all text-sm"
+                      className={`w-full py-4 clip-edge-rev font-display font-bold tracking-[0.2em] transition-all duration-300 text-sm ${
+                        verifyingId === task.id
+                          ? 'bg-neon-blue/20 text-neon-blue animate-pulse border border-neon-blue/50 cursor-wait'
+                          : !walletAddress
+                          ? 'bg-black/40 text-white/20 border border-white/10 cursor-not-allowed'
+                          : 'bg-neon-blue/20 text-neon-blue border border-neon-blue hover:bg-neon-blue hover:text-black shadow-[0_0_15px_rgba(0,240,255,0.2)] hover:shadow-[0_0_25px_rgba(0,240,255,0.6)] active:scale-95'
+                      }`}
                     >
-                      [ 1 : FOLLOW @XLayerOfficial ]
+                      {verifyingId === task.id ? '[ SYNCHRONIZING... ]' : '[ 1 : FOLLOW @XLayerOfficial ]'}
                     </button>
                   ) : task.id === 'swap_xdog_1' && !task.isCompleted ? (
                     <button
