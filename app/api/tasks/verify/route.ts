@@ -37,43 +37,39 @@ export async function POST(req: NextRequest) {
         // Use Onchain OS skill to get real-time balances and prices
         // Use Onchain OS skill - Public portfolio query for the user's address
         // Use direct OKX Wallet API to avoid CLI dependency
-        const OKX_API_KEY = '28c9786b-053b-48df-959f-0d6beacc1d0a'
-        const OKX_SECRET_KEY = '8AE96E275EE85DD891AF588E59F822AD'
-        const OKX_PASSPHRASE = '$Skippy2000'
-
-        const url = `https://www.okx.com/api/v1/wallet/token/token-assets-v2?address=${walletAddress}&chainIndex=196`
-        const timestamp = new Date().toISOString()
-        const method = 'GET'
-        const path = `/api/v1/wallet/token/token-assets-v2?address=${walletAddress}&chainIndex=196`
-        const signStr = `${timestamp}${method}${path}`
+        // Direct Blockchain Verification (Deterministic & Reliable)
+        const provider = new ethers.JsonRpcProvider(XLAYER_RPC)
         
-        const crypto = require('crypto')
-        const signature = crypto.createHmac('sha256', OKX_SECRET_KEY).update(signStr).digest('base64')
-
-        const res = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'OK-ACCESS-KEY': OKX_API_KEY,
-            'OK-ACCESS-SIGN': signature,
-            'OK-ACCESS-PASSPHRASE': OKX_PASSPHRASE,
-            'OK-ACCESS-TIMESTAMP': timestamp,
-            'Content-Type': 'application/json'
+        // 1. Fetch Real-time OKB Price
+        let okbPrice = 70.0
+        try {
+          const tickerRes = await fetch('https://www.okx.com/api/v5/market/ticker?instId=OKB-USDT')
+          const tickerData = await tickerRes.json()
+          if (tickerData.code === '0' && tickerData.data && tickerData.data[0]) {
+            okbPrice = parseFloat(tickerData.data[0].last)
+            console.log(`[Verify API] Live OKB Price: $${okbPrice}`)
           }
-        })
-
-        const result = await res.json()
+        } catch (tickerErr) {
+          console.error('[Verify API] Price fetch failed, using fallback:', tickerErr)
+        }
         
-        if (result.code === '0' && result.data && result.data[0]) {
-          const totalUsd = parseFloat(result.data[0].totalValue || "0")
-          console.log(`[Verify API] User ${walletAddress} portfolio total: $${totalUsd}`)
-          
-          userBalanceMsg = `Neural scan complete. Your X Layer holdings: $${totalUsd.toFixed(2)} USD.`
-          if (totalUsd >= (task.targetValue || 1.0)) {
-            isQualified = true
-          }
-        } else {
-          console.error('[Verify API] OKX API Error:', result)
-          throw new Error('Verification Engine unreachable')
+        // 2. Check Native OKB on X Layer
+        const okbBalance = await provider.getBalance(walletAddress)
+        const okbVal = parseFloat(ethers.formatEther(okbBalance))
+        const okbUsd = okbVal * okbPrice
+        
+        // 3. Check USDC Token on X Layer
+        const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, provider)
+        const usdcBalance = await usdcContract.balanceOf(walletAddress)
+        const usdcDecimals = await usdcContract.decimals()
+        const usdcVal = parseFloat(ethers.formatUnits(usdcBalance, usdcDecimals))
+        
+        const totalUsd = okbUsd + usdcVal
+        console.log(`[Verify API] User ${walletAddress} verified on-chain: $${totalUsd.toFixed(2)} ($${okbUsd.toFixed(2)} OKB Run + $${usdcVal.toFixed(2)} USDC)`)
+        
+        userBalanceMsg = `Neural scan complete. Your X Layer holdings: ~$${totalUsd.toFixed(2)} USD (OKB Price: $${okbPrice.toFixed(2)}).`
+        if (totalUsd >= (task.targetValue || 1.0)) {
+          isQualified = true
         }
       } catch (err: any) {
         console.error('Verification Engine Error:', err.message)
