@@ -1,45 +1,34 @@
-import { ethers } from 'ethers'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+import { USDC_ADDRESS } from './constants'
 
-const USDC_ABI = [
-  'function transfer(address to, uint256 amount)',
-  'function balanceOf(address owner) view returns (uint256)',
-  'function decimals() view returns (uint8)',
-]
+const execAsync = promisify(exec)
 
-const USDC_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || '0x74b7f16337b8972027f6196a17a631ac6de26d22'
-export const AGENT_WALLET_ADDRESS = process.env.AGENT_WALLET_ADDRESS || '0x9369bE87e872457a9eeDd85FDfce1212E5ec51f6'
-const AGENT_WALLET_PK = process.env.AGENT_WALLET_PRIVATE_KEY
+// TEE Wallet Address (Account: 81bf4c60-4ecb-47d5-a768-cd78e7ea7788)
+export const AGENT_WALLET_ADDRESS = '0xf33ee27249dd9f870c5fe318064065e1ffe218f9'
 
 export async function sendUSDC(toAddress: string, amount: number) {
-  if (!AGENT_WALLET_PK) {
-    throw new Error('AGENT_WALLET_PRIVATE_KEY NOT CONFIGURED IN .ENV')
-  }
-
-  const rpcUrl = process.env.XLAYER_RPC_URL || 'https://rpc.xlayer.tech'
-  const provider = new ethers.JsonRpcProvider(rpcUrl)
+  // Convert amount to minimal units (6 decimals for USDC)
+  const amountInUnits = Math.floor(amount * 1_000_000).toString()
   
-  // Create Wallet Signer from Private Key
-  const wallet = new ethers.Wallet(AGENT_WALLET_PK, provider)
-  const usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, wallet)
-
-  // 1. Check Balances
-  const decimals = await usdc.decimals()
-  const balance = await usdc.balanceOf(AGENT_WALLET_ADDRESS)
-  const balanceFormatted = parseFloat(ethers.formatUnits(balance, decimals))
-
-  if (balanceFormatted < amount) {
-    throw new Error(`Insufficient treasury: ${balanceFormatted} USDC available. Fund 0x9369...`)
-  }
-
-  // 2. Execute Transfer
-  const amountInUnits = ethers.parseUnits(amount.toFixed(6), decimals)
-  console.log(`[sendUSDC] Sending ${amount} USDC to ${toAddress}...`)
+  console.log(`[sendUSDC] Sending ${amount} USDC to ${toAddress} via TEE wallet...`)
   
-  const tx = await usdc.transfer(toAddress, amountInUnits)
-  const receipt = await tx.wait()
-
+  // Use onchainos wallet send with contract-token for USDC
+  const { stdout, stderr } = await execAsync(
+    `onchainos wallet send --chain 196 --receipt "${toAddress}" --amt "${amountInUnits}" --contract-token "${USDC_ADDRESS}"`
+  )
+  
+  if (stderr) {
+    throw new Error(`onchainos send failed: ${stderr}`)
+  }
+  
+  const result = JSON.parse(stdout)
+  if (!result.ok) {
+    throw new Error(`Send failed: ${result.error}`)
+  }
+  
   return { 
-    txHash: receipt.hash, 
+    txHash: result.data.txHash, 
     from: AGENT_WALLET_ADDRESS, 
     to: toAddress, 
     amount 
@@ -47,14 +36,19 @@ export async function sendUSDC(toAddress: string, amount: number) {
 }
 
 export async function getAgentBalance(): Promise<number> {
-  const rpcUrl = process.env.XLAYER_RPC_URL || 'https://rpc.xlayer.tech'
-  const provider = new ethers.JsonRpcProvider(rpcUrl)
-  const usdc = new ethers.Contract(USDC_ADDRESS, USDC_ABI, provider)
-
   try {
-    const decimals = await usdc.decimals()
-    const balance = await usdc.balanceOf(AGENT_WALLET_ADDRESS)
-    return parseFloat(ethers.formatUnits(balance, decimals))
+    const { stdout } = await execAsync(
+      `onchainos wallet balance --chain 196 --token-address "${USDC_ADDRESS}"`
+    )
+    const result = JSON.parse(stdout)
+    
+    if (result.ok && result.data?.tokenAssets?.length > 0) {
+      const usdcAsset = result.data.tokenAssets.find(
+        (asset: any) => asset.tokenAddress?.toLowerCase() === USDC_ADDRESS.toLowerCase()
+      )
+      return usdcAsset ? parseFloat(usdcAsset.balance) : 0
+    }
+    return 0
   } catch (err) {
     console.error('getAgentBalance error:', err)
     return 0
